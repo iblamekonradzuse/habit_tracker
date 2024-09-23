@@ -50,7 +50,7 @@ pub fn draw<B: Backend>(
     f: &mut Frame<B>,
     habits: &[Habit],
     current_date: &NaiveDate,
-    app_state: &AppState,
+    app_state: &mut AppState,
 ) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -108,7 +108,7 @@ pub fn draw<B: Backend>(
     draw_help(f, chunks[2]);
 
     if let InputMode::AddingHabit = app_state.input_mode {
-        draw_add_habit_popup(f, app_state, chunks[0]);
+        draw_add_habit_popup(f, app_state);
     }
 }
 
@@ -157,8 +157,7 @@ fn draw_help<B: Backend>(f: &mut Frame<B>, area: Rect) {
     f.render_widget(help_paragraph_right, help_chunks[1]);
 }
 
-
-fn draw_add_habit_popup<B: Backend>(f: &mut Frame<B>, app_state: &AppState, title_area: Rect) {
+fn draw_add_habit_popup<B: Backend>(f: &mut Frame<B>, app_state: &mut AppState) {
     let popup_area = centered_rect(60, 20, f.size());
     f.render_widget(Clear, popup_area);
 

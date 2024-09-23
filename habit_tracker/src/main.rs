@@ -8,7 +8,6 @@ use std::io;
 use tui::backend::CrosstermBackend;
 use tui::Terminal;
 
-mod cli;
 mod habit;
 mod storage;
 mod ui;
