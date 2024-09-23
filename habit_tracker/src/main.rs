@@ -64,9 +64,21 @@ fn run_app<B: tui::backend::Backend>(
                         app_state.input_mode = ui::InputMode::AddingHabit;
                         app_state.new_habit_name.clear();
                     }
-                    KeyCode::Char('m') => {
+                    KeyCode::Enter => {
                         if let Some(index) = app_state.selected {
-                            habits[index].mark_completed(*current_date);
+                            if habits[index].is_completed(*current_date) {
+                                habits[index].unmark_completed(*current_date);
+                            } else {
+                                habits[index].mark_completed(*current_date);
+                            }
+                        }
+                    }
+                    KeyCode::Char('d') => {
+                        if let Some(index) = app_state.selected {
+                            habits.remove(index);
+                            if index >= habits.len() {
+                                app_state.selected = habits.len().checked_sub(1);
+                            }
                         }
                     }
                     KeyCode::Left => {
@@ -77,7 +89,6 @@ fn run_app<B: tui::backend::Backend>(
                     }
                     KeyCode::Up => app_state.previous(),
                     KeyCode::Down => app_state.next(habits.len()),
-                    KeyCode::Enter => app_state.toggle_selected(),
                     _ => {}
                 },
                 ui::InputMode::AddingHabit => match key.code {
@@ -85,9 +96,11 @@ fn run_app<B: tui::backend::Backend>(
                         let new_habit = habit::Habit::new(app_state.new_habit_name.clone());
                         habits.push(new_habit);
                         app_state.input_mode = ui::InputMode::Normal;
+                        app_state.new_habit_name.clear();
                     }
                     KeyCode::Esc => {
                         app_state.input_mode = ui::InputMode::Normal;
+                        app_state.new_habit_name.clear();
                     }
                     KeyCode::Char(c) => {
                         app_state.new_habit_name.push(c);
@@ -101,3 +114,4 @@ fn run_app<B: tui::backend::Backend>(
         }
     }
 }
+

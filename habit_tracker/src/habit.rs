@@ -22,6 +22,10 @@ impl Habit {
         }
     }
 
+    pub fn unmark_completed(&mut self, date: NaiveDate) {
+        self.completed_dates.retain(|&d| d != date);
+    }
+
     pub fn is_completed(&self, date: NaiveDate) -> bool {
         self.completed_dates.contains(&date)
     }
@@ -59,4 +63,3 @@ impl Habit {
         status
     }
 }
-

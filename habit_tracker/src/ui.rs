@@ -44,13 +44,6 @@ impl AppState {
             None => None,
         };
     }
-
-    pub fn toggle_selected(&mut self) {
-        self.selected = match self.selected {
-            Some(_) => None,
-            None => Some(0),
-        };
-    }
 }
 
 pub fn draw<B: Backend>(
@@ -62,7 +55,7 @@ pub fn draw<B: Backend>(
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(2)
-        .constraints([Constraint::Length(3), Constraint::Min(0)].as_ref())
+        .constraints([Constraint::Length(3), Constraint::Percentage(70), Constraint::Length(8)])
         .split(f.size());
 
     let title = Paragraph::new(Spans::from(vec![
@@ -112,20 +105,15 @@ pub fn draw<B: Backend>(
     f.render_stateful_widget(habits_list, bottom_chunks[0], &mut ListState::default());
     f.render_widget(streak_chart, bottom_chunks[1]);
 
-    draw_help(f);
+    draw_help(f, chunks[2]);
 
     if let InputMode::AddingHabit = app_state.input_mode {
-        draw_add_habit_popup(f, app_state);
+        draw_add_habit_popup(f, app_state, chunks[0]);
     }
 }
 
 fn create_streak_chart<'a>(habits: &[Habit], end_date: NaiveDate) -> Paragraph<'a> {
     let mut content = Vec::new();
-    content.push(Spans::from(Span::styled(
-        "Streak Chart",
-        Style::default().add_modifier(Modifier::BOLD),
-    )));
-    content.push(Spans::from(""));
 
     for habit in habits {
         let streak = habit.get_streak(end_date);
@@ -138,33 +126,39 @@ fn create_streak_chart<'a>(habits: &[Habit], end_date: NaiveDate) -> Paragraph<'
     }
 
     Paragraph::new(content)
-        .block(Block::default().borders(Borders::ALL).title("Streaks"))
+        .block(Block::default().borders(Borders::ALL))
         .style(Style::default())
 }
 
-fn draw_help<B: Backend>(f: &mut Frame<B>) {
+fn draw_help<B: Backend>(f: &mut Frame<B>, area: Rect) {
     let help_text = vec![
-        Spans::from("q: Quit"),
-        Spans::from("a: Add new habit"),
-        Spans::from("m: Mark selected habit"),
-        Spans::from("←/→: Change date"),
-        Spans::from("↑/↓: Navigate habits"),
-        Spans::from("Enter: Select/Deselect habit"),
+        Spans::from(Span::styled("q: Quit", Style::default().add_modifier(Modifier::BOLD))),
+        Spans::from(Span::styled("a: Add new habit", Style::default().add_modifier(Modifier::BOLD))),
+        Spans::from(Span::styled("Enter: Mark/unmark selected habit", Style::default().add_modifier(Modifier::BOLD))),
+        Spans::from(Span::styled("d: Delete selected habit", Style::default().add_modifier(Modifier::BOLD))),
+        Spans::from(Span::styled("Left/Right Arrow: Change date", Style::default().add_modifier(Modifier::BOLD))),
+        Spans::from(Span::styled("Up/Down Arrow: Navigate habits", Style::default().add_modifier(Modifier::BOLD))),
     ];
 
-    let help_paragraph = Paragraph::new(help_text)
-        .block(Block::default().borders(Borders::ALL).title("Help"))
-        .style(Style::default());
+    let help_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
+        .split(area);
 
-    let area = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0), Constraint::Length(8)])
-        .split(f.size())[1];
+    let help_paragraph_left = Paragraph::new(help_text[0..3].to_vec())
+        .alignment(tui::layout::Alignment::Center)
+        .block(Block::default().borders(Borders::ALL));
 
-    f.render_widget(help_paragraph, area);
+    let help_paragraph_right = Paragraph::new(help_text[3..].to_vec())
+        .alignment(tui::layout::Alignment::Center)
+        .block(Block::default().borders(Borders::ALL));
+
+    f.render_widget(help_paragraph_left, help_chunks[0]);
+    f.render_widget(help_paragraph_right, help_chunks[1]);
 }
 
-fn draw_add_habit_popup<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
+
+fn draw_add_habit_popup<B: Backend>(f: &mut Frame<B>, app_state: &AppState, title_area: Rect) {
     let popup_area = centered_rect(60, 20, f.size());
     f.render_widget(Clear, popup_area);
 
@@ -175,24 +169,36 @@ fn draw_add_habit_popup<B: Backend>(f: &mut Frame<B>, app_state: &AppState) {
 
     f.render_widget(popup, popup_area);
 
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(2)
+        .constraints(
+            [
+                Constraint::Length(3),
+                Constraint::Min(1),
+                Constraint::Length(3),
+            ]
+            .as_ref(),
+        )
+        .split(popup_area);
+
     let input = Paragraph::new(app_state.new_habit_name.as_ref())
-        .style(Style::default())
+        .style(Style::default().fg(Color::Yellow))
         .block(Block::default().borders(Borders::ALL).title("Habit Name"));
 
-    let input_area = centered_rect(50, 3, popup_area);
-    f.render_widget(input, input_area);
+    f.render_widget(input, chunks[0]);
+
+    // Set cursor position
+    f.set_cursor(
+        chunks[0].x + app_state.new_habit_name.len() as u16 + 1,
+        chunks[0].y + 1,
+    );
 
     let help_text = Paragraph::new("Press Enter to confirm, Esc to cancel")
-        .style(Style::default())
-        .block(Block::default());
+        .style(Style::default().fg(Color::Green))
+        .alignment(tui::layout::Alignment::Center);
 
-    let help_area = Rect::new(
-        popup_area.x + 2,
-        popup_area.y + popup_area.height - 3,
-        popup_area.width - 4,
-        1,
-    );
-    f.render_widget(help_text, help_area);
+    f.render_widget(help_text, chunks[2]);
 }
 
 fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
@@ -214,4 +220,3 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
         ])
         .split(popup_layout[1])[1]
 }
-
