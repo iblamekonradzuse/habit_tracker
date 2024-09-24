@@ -113,4 +113,3 @@ fn run_app<B: tui::backend::Backend>(
         }
     }
 }
-

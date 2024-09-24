@@ -2,10 +2,10 @@ use crate::habit::Habit;
 use chrono::NaiveDate;
 use tui::{
     backend::Backend,
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Span, Spans},
-    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph},
+    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
     Frame,
 };
 
@@ -55,19 +55,41 @@ pub fn draw<B: Backend>(
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(2)
-        .constraints([Constraint::Length(3), Constraint::Percentage(70), Constraint::Length(8)])
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Min(0),
+            Constraint::Length(8),
+        ])
         .split(f.size());
 
-    let title = Paragraph::new(Spans::from(vec![
-        Span::styled(
-            "Habit Tracker ",
+    let header_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(chunks[0]);
+
+    let title = Paragraph::new(Span::raw(format!("(Date: {})", current_date)))
+        .style(Style::default().fg(Color::Cyan))
+        .block(Block::default().borders(Borders::ALL).title(Span::styled(
+            "Habit Tracker",
             Style::default().add_modifier(Modifier::BOLD),
-        ),
-        Span::raw(format!("(Date: {})", current_date)),
-    ]))
-    .style(Style::default().fg(Color::Cyan))
-    .block(Block::default().borders(Borders::ALL));
-    f.render_widget(title, chunks[0]);
+        )));
+    f.render_widget(title, header_chunks[0]);
+
+    let input = Paragraph::new(app_state.new_habit_name.as_ref())
+        .style(Style::default().fg(Color::Yellow))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Add New Habit"),
+        );
+    f.render_widget(input, header_chunks[1]);
+
+    if let InputMode::AddingHabit = app_state.input_mode {
+        f.set_cursor(
+            header_chunks[1].x + app_state.new_habit_name.len() as u16 + 1,
+            header_chunks[1].y + 1,
+        );
+    }
 
     let habits_list: Vec<ListItem> = habits
         .iter()
@@ -88,28 +110,29 @@ pub fn draw<B: Backend>(
         .collect();
 
     let habits_list = List::new(habits_list)
-        .block(Block::default().borders(Borders::ALL).title("Habits"))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Cyan))
+                .title(Span::styled("Habits", Style::default().fg(Color::Magenta))),
+        )
         .highlight_style(
             Style::default()
                 .add_modifier(Modifier::BOLD)
                 .fg(Color::Yellow),
         );
 
-    let streak_chart = create_streak_chart(habits, *current_date);
-
-    let bottom_chunks = Layout::default()
+    let main_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
         .split(chunks[1]);
 
-    f.render_stateful_widget(habits_list, bottom_chunks[0], &mut ListState::default());
-    f.render_widget(streak_chart, bottom_chunks[1]);
+    f.render_stateful_widget(habits_list, main_chunks[0], &mut ListState::default());
+
+    let streak_chart = create_streak_chart(habits, *current_date);
+    f.render_widget(streak_chart, main_chunks[1]);
 
     draw_help(f, chunks[2]);
-
-    if let InputMode::AddingHabit = app_state.input_mode {
-        draw_add_habit_popup(f, app_state);
-    }
 }
 
 fn create_streak_chart<'a>(habits: &[Habit], end_date: NaiveDate) -> Paragraph<'a> {
@@ -126,18 +149,41 @@ fn create_streak_chart<'a>(habits: &[Habit], end_date: NaiveDate) -> Paragraph<'
     }
 
     Paragraph::new(content)
-        .block(Block::default().borders(Borders::ALL))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Cyan))
+                .title(Span::styled("Streaks", Style::default().fg(Color::Blue))),
+        )
         .style(Style::default())
 }
 
-fn draw_help<B: Backend>(f: &mut Frame<B>, area: Rect) {
+fn draw_help<B: Backend>(f: &mut Frame<B>, area: tui::layout::Rect) {
     let help_text = vec![
-        Spans::from(Span::styled("q: Quit", Style::default().add_modifier(Modifier::BOLD))),
-        Spans::from(Span::styled("a: Add new habit", Style::default().add_modifier(Modifier::BOLD))),
-        Spans::from(Span::styled("Enter: Mark/unmark selected habit", Style::default().add_modifier(Modifier::BOLD))),
-        Spans::from(Span::styled("d: Delete selected habit", Style::default().add_modifier(Modifier::BOLD))),
-        Spans::from(Span::styled("Left/Right Arrow: Change date", Style::default().add_modifier(Modifier::BOLD))),
-        Spans::from(Span::styled("Up/Down Arrow: Navigate habits", Style::default().add_modifier(Modifier::BOLD))),
+        Spans::from(Span::styled(
+            "q: Quit",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+        Spans::from(Span::styled(
+            "a: Add new habit",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+        Spans::from(Span::styled(
+            "Enter: Mark/unmark selected habit",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+        Spans::from(Span::styled(
+            "d: Delete selected habit",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+        Spans::from(Span::styled(
+            "Left/Right Arrow: Change date",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
+        Spans::from(Span::styled(
+            "Up/Down Arrow: Navigate habits",
+            Style::default().add_modifier(Modifier::BOLD),
+        )),
     ];
 
     let help_chunks = Layout::default()
@@ -157,65 +203,3 @@ fn draw_help<B: Backend>(f: &mut Frame<B>, area: Rect) {
     f.render_widget(help_paragraph_right, help_chunks[1]);
 }
 
-fn draw_add_habit_popup<B: Backend>(f: &mut Frame<B>, app_state: &mut AppState) {
-    let popup_area = centered_rect(60, 20, f.size());
-    f.render_widget(Clear, popup_area);
-
-    let popup = Block::default()
-        .title("Add New Habit")
-        .borders(Borders::ALL)
-        .style(Style::default().bg(Color::DarkGray));
-
-    f.render_widget(popup, popup_area);
-
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .margin(2)
-        .constraints(
-            [
-                Constraint::Length(3),
-                Constraint::Min(1),
-                Constraint::Length(3),
-            ]
-            .as_ref(),
-        )
-        .split(popup_area);
-
-    let input = Paragraph::new(app_state.new_habit_name.as_ref())
-        .style(Style::default().fg(Color::Yellow))
-        .block(Block::default().borders(Borders::ALL).title("Habit Name"));
-
-    f.render_widget(input, chunks[0]);
-
-    // Set cursor position
-    f.set_cursor(
-        chunks[0].x + app_state.new_habit_name.len() as u16 + 1,
-        chunks[0].y + 1,
-    );
-
-    let help_text = Paragraph::new("Press Enter to confirm, Esc to cancel")
-        .style(Style::default().fg(Color::Green))
-        .alignment(tui::layout::Alignment::Center);
-
-    f.render_widget(help_text, chunks[2]);
-}
-
-fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
-    let popup_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
-            Constraint::Percentage((100 - percent_y) / 2),
-        ])
-        .split(r);
-
-    Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage((100 - percent_x) / 2),
-            Constraint::Percentage(percent_x),
-            Constraint::Percentage((100 - percent_x) / 2),
-        ])
-        .split(popup_layout[1])[1]
-}
