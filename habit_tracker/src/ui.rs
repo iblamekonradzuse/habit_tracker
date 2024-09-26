@@ -11,6 +11,7 @@ use tui::{
 
 pub enum InputMode {
     Normal,
+    AddingCategory,
     AddingHabit,
 }
 
@@ -18,6 +19,7 @@ pub struct AppState {
     pub selected: Option<usize>,
     pub input_mode: InputMode,
     pub new_habit_name: String,
+    pub new_category: String,
 }
 
 impl Default for AppState {
@@ -26,6 +28,7 @@ impl Default for AppState {
             selected: None,
             input_mode: InputMode::Normal,
             new_habit_name: String::new(),
+            new_category: String::new(),
         }
     }
 }
@@ -57,15 +60,11 @@ pub fn draw<B: Backend>(
         .margin(2)
         .constraints([
             Constraint::Length(3),
+            Constraint::Length(3),
             Constraint::Min(0),
             Constraint::Length(8),
         ])
         .split(f.size());
-
-    let header_chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(chunks[0]);
 
     let title = Paragraph::new(Span::raw(format!("(Date: {})", current_date)))
         .style(Style::default().fg(Color::Cyan))
@@ -73,22 +72,37 @@ pub fn draw<B: Backend>(
             "Habit Tracker",
             Style::default().add_modifier(Modifier::BOLD),
         )));
-    f.render_widget(title, header_chunks[0]);
+    f.render_widget(title, chunks[0]);
 
-    let input = Paragraph::new(app_state.new_habit_name.as_ref())
+    let input_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(chunks[1]);
+
+    let category_input = Paragraph::new(app_state.new_category.as_ref())
         .style(Style::default().fg(Color::Yellow))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Add New Habit"),
-        );
-    f.render_widget(input, header_chunks[1]);
+        .block(Block::default().borders(Borders::ALL).title("Category"));
+    f.render_widget(category_input, input_chunks[0]);
 
-    if let InputMode::AddingHabit = app_state.input_mode {
-        f.set_cursor(
-            header_chunks[1].x + app_state.new_habit_name.len() as u16 + 1,
-            header_chunks[1].y + 1,
-        );
+    let habit_input = Paragraph::new(app_state.new_habit_name.as_ref())
+        .style(Style::default().fg(Color::Yellow))
+        .block(Block::default().borders(Borders::ALL).title("New Habit"));
+    f.render_widget(habit_input, input_chunks[1]);
+
+    match app_state.input_mode {
+        InputMode::AddingCategory => {
+            f.set_cursor(
+                input_chunks[0].x + app_state.new_category.len() as u16 + 1,
+                input_chunks[0].y + 1,
+            );
+        }
+        InputMode::AddingHabit => {
+            f.set_cursor(
+                input_chunks[1].x + app_state.new_habit_name.len() as u16 + 1,
+                input_chunks[1].y + 1,
+            );
+        }
+        _ => {}
     }
 
     let habits_list: Vec<ListItem> = habits
@@ -97,11 +111,13 @@ pub fn draw<B: Backend>(
         .map(|(i, habit)| {
             let completed = habit.is_completed(*current_date);
             let icon = if completed { "✅" } else { "⬜" };
-            let content = vec![Spans::from(Span::raw(format!("{} {}", icon, habit.name)))];
+            let content = vec![Spans::from(vec![
+                Span::raw(format!("{} ", icon)),
+                Span::styled(&habit.category, Style::default().fg(Color::Magenta)),
+                Span::raw(format!(": {}", habit.name)),
+            ])];
             let style = if Some(i) == app_state.selected {
-                Style::default()
-                    .fg(Color::Yellow)
-                    .add_modifier(Modifier::BOLD)
+                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
             } else {
                 Style::default()
             };
@@ -125,24 +141,25 @@ pub fn draw<B: Backend>(
     let main_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)].as_ref())
-        .split(chunks[1]);
+        .split(chunks[2]);
 
     f.render_stateful_widget(habits_list, main_chunks[0], &mut ListState::default());
 
     let streak_chart = create_streak_chart(habits, *current_date);
     f.render_widget(streak_chart, main_chunks[1]);
 
-    draw_help(f, chunks[2]);
+    draw_help(f, chunks[3]);
 }
 
-fn create_streak_chart<'a>(habits: &[Habit], end_date: NaiveDate) -> Paragraph<'a> {
+fn create_streak_chart<'a>(habits: &'a [Habit], end_date: NaiveDate) -> Paragraph<'a> {
     let mut content = Vec::new();
 
     for habit in habits {
         let streak = habit.get_streak(end_date);
         let bar = "█".repeat(streak as usize);
         content.push(Spans::from(vec![
-            Span::raw(format!("{:<20}", habit.name)),
+            Span::styled(&habit.category, Style::default().fg(Color::Magenta)),
+            Span::raw(format!(": {:<20}", habit.name)),
             Span::styled(bar, Style::default().fg(Color::Green)),
             Span::raw(format!(" {}", streak)),
         ]));
@@ -202,4 +219,3 @@ fn draw_help<B: Backend>(f: &mut Frame<B>, area: tui::layout::Rect) {
     f.render_widget(help_paragraph_left, help_chunks[0]);
     f.render_widget(help_paragraph_right, help_chunks[1]);
 }
-

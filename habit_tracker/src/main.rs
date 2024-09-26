@@ -60,7 +60,8 @@ fn run_app<B: tui::backend::Backend>(
                 ui::InputMode::Normal => match key.code {
                     KeyCode::Char('q') => return Ok(()),
                     KeyCode::Char('a') => {
-                        app_state.input_mode = ui::InputMode::AddingHabit;
+                        app_state.input_mode = ui::InputMode::AddingCategory;
+                        app_state.new_category.clear();
                         app_state.new_habit_name.clear();
                     }
                     KeyCode::Enter => {
@@ -90,16 +91,38 @@ fn run_app<B: tui::backend::Backend>(
                     KeyCode::Down => app_state.next(habits.len()),
                     _ => {}
                 },
+                ui::InputMode::AddingCategory => match key.code {
+                    KeyCode::Enter => {
+                        app_state.input_mode = ui::InputMode::AddingHabit;
+                    }
+                    KeyCode::Esc => {
+                        app_state.input_mode = ui::InputMode::Normal;
+                        app_state.new_category.clear();
+                        app_state.new_habit_name.clear();
+                    }
+                    KeyCode::Char(c) => {
+                        app_state.new_category.push(c);
+                    }
+                    KeyCode::Backspace => {
+                        app_state.new_category.pop();
+                    }
+                    _ => {}
+                },
                 ui::InputMode::AddingHabit => match key.code {
                     KeyCode::Enter => {
-                        let new_habit = habit::Habit::new(app_state.new_habit_name.clone());
+                        let new_habit = habit::Habit::new(
+                            app_state.new_habit_name.clone(),
+                            app_state.new_category.clone(),
+                        );
                         habits.push(new_habit);
                         app_state.input_mode = ui::InputMode::Normal;
                         app_state.new_habit_name.clear();
+                        app_state.new_category.clear();
                     }
                     KeyCode::Esc => {
                         app_state.input_mode = ui::InputMode::Normal;
                         app_state.new_habit_name.clear();
+                        app_state.new_category.clear();
                     }
                     KeyCode::Char(c) => {
                         app_state.new_habit_name.push(c);
@@ -113,3 +136,4 @@ fn run_app<B: tui::backend::Backend>(
         }
     }
 }
+

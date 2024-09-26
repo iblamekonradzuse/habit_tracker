@@ -29,3 +29,4 @@ pub fn save_habits(habits: &[Habit]) -> io::Result<()> {
     file.write_all(json.as_bytes())?;
     Ok(())
 }
+

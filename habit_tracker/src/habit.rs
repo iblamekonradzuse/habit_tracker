@@ -4,13 +4,15 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Habit {
     pub name: String,
+    pub category: String,
     completed_dates: Vec<NaiveDate>,
 }
 
 impl Habit {
-    pub fn new(name: String) -> Self {
+    pub fn new(name: String, category: String) -> Self {
         Habit {
             name,
+            category,
             completed_dates: Vec::new(),
         }
     }
@@ -63,3 +65,4 @@ impl Habit {
         status
     }
 }
+
