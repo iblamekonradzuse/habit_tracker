@@ -20,7 +20,7 @@ impl fmt::Display for Frequency {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Habit {
     pub name: String,
     pub category: String,
@@ -117,4 +117,3 @@ impl Habit {
         self.get_streak(date)
     }
 }
-

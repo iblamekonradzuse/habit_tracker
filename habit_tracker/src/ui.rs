@@ -1,5 +1,6 @@
 use crate::habit::{Frequency, Habit};
 use chrono::NaiveDate;
+use std::collections::BTreeMap;
 use tui::{
     backend::Backend,
     layout::{Constraint, Direction, Layout, Rect},
@@ -22,6 +23,13 @@ pub struct AppState {
     pub new_category: String,
     pub new_habit_frequency: Frequency,
     pub current_tab: usize,
+    pub total_items: usize,
+    pub list_items: Vec<ListEntry>,
+}
+
+pub enum ListEntry {
+    Category(String),
+    Habit(Habit),
 }
 
 impl Default for AppState {
@@ -33,23 +41,62 @@ impl Default for AppState {
             new_category: String::new(),
             new_habit_frequency: Frequency::Daily,
             current_tab: 0,
+            total_items: 0,
+            list_items: Vec::new(),
         }
     }
 }
 
 impl AppState {
-    pub fn next(&mut self, len: usize) {
+    pub fn next(&mut self) {
         self.selected = Some(match self.selected {
-            Some(i) => (i + 1) % len,
+            Some(i) => (i + 1) % self.total_items,
             None => 0,
         });
     }
 
     pub fn previous(&mut self) {
         self.selected = Some(match self.selected {
-            Some(i) => if i > 0 { i - 1 } else { 0 },
+            Some(i) => {
+                if i > 0 {
+                    i - 1
+                } else {
+                    self.total_items - 1
+                }
+            }
             None => 0,
         });
+    }
+
+    pub fn update_list_items(&mut self, habits: &[Habit]) {
+        self.list_items.clear();
+        let filtered_habits: Vec<&Habit> = habits
+            .iter()
+            .filter(|h| match self.current_tab {
+                0 => h.get_frequency() == Frequency::Daily,
+                1 => h.get_frequency() == Frequency::Weekly,
+                2 => h.get_frequency() == Frequency::Monthly,
+                _ => false,
+            })
+            .collect();
+
+        let mut grouped_habits: BTreeMap<&str, Vec<&Habit>> = BTreeMap::new();
+        for habit in &filtered_habits {
+            grouped_habits
+                .entry(&habit.category)
+                .or_insert_with(Vec::new)
+                .push(habit);
+        }
+
+        for (category, habits) in grouped_habits {
+            self.list_items
+                .push(ListEntry::Category(category.to_string()));
+            for habit in habits {
+                self.list_items.push(ListEntry::Habit((*habit).clone()));
+            }
+        }
+
+        self.total_items = self.list_items.len();
     }
 }
 
@@ -92,7 +139,11 @@ fn draw_tabs<B: Backend>(f: &mut Frame<B>, area: Rect, app_state: &AppState) {
         .select(app_state.current_tab)
         .block(Block::default().borders(Borders::ALL))
         .style(Style::default().fg(Color::White))
-        .highlight_style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+        .highlight_style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )
         .divider(Span::raw("|"));
     f.render_widget(tabs, area);
 }
@@ -111,58 +162,75 @@ fn draw_main_content<B: Backend>(
 
     let input_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0), Constraint::Length(3)])
+        .constraints([Constraint::Length(3), Constraint::Min(0)])
         .split(chunks[0]);
 
-    draw_habits_list(f, input_chunks[0], habits, current_date, app_state);
-    draw_input(f, input_chunks[1], app_state);
+    draw_input(f, input_chunks[0], app_state);
+    draw_habits_list(f, input_chunks[1], current_date, app_state);
     draw_streak_chart(f, chunks[1], habits, current_date);
 }
 
 fn draw_habits_list<B: Backend>(
     f: &mut Frame<B>,
     area: Rect,
-    habits: &[Habit],
     current_date: &NaiveDate,
     app_state: &mut AppState,
 ) {
-    let filtered_habits: Vec<&Habit> = habits
-        .iter()
-        .filter(|h| match app_state.current_tab {
-            0 => h.get_frequency() == Frequency::Daily,
-            1 => h.get_frequency() == Frequency::Weekly,
-            2 => h.get_frequency() == Frequency::Monthly,
-            _ => false,
-        })
-        .collect();
+    let mut items = Vec::new();
+    let category_colors = [
+        Color::Red,
+        Color::Green,
+        Color::Yellow,
+        Color::Blue,
+        Color::Magenta,
+        Color::Cyan,
+    ];
+    let mut color_index = 0;
 
-    let items: Vec<ListItem> = filtered_habits
-        .iter()
-        .enumerate()
-        .map(|(i, habit)| {
-            let completed = habit.is_completed(*current_date);
-            let icon = if completed { "✅" } else { "⬜" };
-            let content = vec![Spans::from(vec![
-                Span::raw(format!("{} ", icon)),
-                Span::styled(&habit.category, Style::default().fg(Color::Magenta)),
-                Span::raw(format!(": {}", habit.name)),
-            ])];
-            let style = if Some(i) == app_state.selected {
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
-            } else {
-                Style::default()
-            };
-            ListItem::new(content).style(style)
-        })
-        .collect();
+    for (_index, entry) in app_state.list_items.iter().enumerate() {
+        match entry {
+            ListEntry::Category(category) => {
+                let category_color = category_colors[color_index % category_colors.len()];
+                color_index += 1;
+                items.push(ListItem::new(Spans::from(vec![Span::styled(
+                    format!("{}:", category),
+                    Style::default()
+                        .fg(category_color)
+                        .add_modifier(Modifier::BOLD),
+                )])));
+            }
+            ListEntry::Habit(habit) => {
+                let completed = habit.is_completed(*current_date);
+                let icon = if completed { "✅" } else { "⬜" };
+                let content = Spans::from(vec![
+                    Span::raw("  "), // Indent habit
+                    Span::raw(format!("{} ", icon)),
+                    Span::styled(
+                        &habit.name,
+                        Style::default()
+                            .fg(category_colors[(color_index - 1) % category_colors.len()]),
+                    ),
+                ]);
+                items.push(ListItem::new(content));
+            }
+        }
+    }
 
-    let habits_list = List::new(items).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title(Span::styled("Habits", Style::default().fg(Color::Cyan))),
-    );
+    let habits_list = List::new(items)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(Span::styled("Habits", Style::default().fg(Color::Cyan))),
+        )
+        .highlight_style(
+            Style::default()
+                .fg(Color::LightCyan)
+                .add_modifier(Modifier::BOLD),
+        );
 
-    f.render_stateful_widget(habits_list, area, &mut ListState::default());
+    let mut list_state = ListState::default();
+    list_state.select(app_state.selected);
+    f.render_stateful_widget(habits_list, area, &mut list_state);
 }
 
 fn draw_input<B: Backend>(f: &mut Frame<B>, area: Rect, app_state: &AppState) {
@@ -217,24 +285,22 @@ fn draw_streak_chart<B: Backend>(
 }
 
 fn draw_help<B: Backend>(f: &mut Frame<B>, area: Rect) {
-    let help_text = vec![
-        Spans::from(vec![
-            Span::styled("q", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(": Quit | "),
-            Span::styled("a", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(": Add | "),
-            Span::styled("Enter", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(": Toggle | "),
-            Span::styled("d", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(": Delete | "),
-            Span::styled("←/→", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(": Change date | "),
-            Span::styled("↑/↓", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(": Navigate | "),
-            Span::styled("Tab", Style::default().add_modifier(Modifier::BOLD)),
-            Span::raw(": Switch frequency"),
-        ]),
-    ];
+    let help_text = vec![Spans::from(vec![
+        Span::styled("q", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(": Quit | "),
+        Span::styled("a", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(": Add | "),
+        Span::styled("Enter", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(": Toggle | "),
+        Span::styled("d", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(": Delete | "),
+        Span::styled("←/→", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(": Change date | "),
+        Span::styled("↑/↓", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(": Navigate | "),
+        Span::styled("Tab", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(": Switch frequency"),
+    ])];
 
     let help_paragraph = Paragraph::new(help_text)
         .alignment(tui::layout::Alignment::Center)
@@ -242,3 +308,4 @@ fn draw_help<B: Backend>(f: &mut Frame<B>, area: Rect) {
 
     f.render_widget(help_paragraph, area);
 }
+
