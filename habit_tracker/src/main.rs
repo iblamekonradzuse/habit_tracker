@@ -10,6 +10,7 @@ use tui::Terminal;
 
 mod habit;
 mod storage;
+mod todo;
 mod ui;
 
 use crate::ui::ListEntry;
@@ -24,6 +25,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Set up application state
     let mut habits = storage::load_habits()?;
+    let mut todos = storage::load_todos()?;
     let mut current_date = chrono::Local::now().date_naive();
     let mut app_state = ui::AppState::default();
 
@@ -31,6 +33,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let res = run_app(
         &mut terminal,
         &mut habits,
+        &mut todos,
         &mut current_date,
         &mut app_state,
     );
@@ -48,8 +51,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("Error: {:?}", err)
     }
 
-    // Save habits before exiting
+    // Save habits and todos before exiting
     storage::save_habits(&habits)?;
+    storage::save_todos(&todos)?;
 
     Ok(())
 }
@@ -57,22 +61,28 @@ fn main() -> Result<(), Box<dyn Error>> {
 fn run_app<B: tui::backend::Backend>(
     terminal: &mut Terminal<B>,
     habits: &mut Vec<habit::Habit>,
+    todos: &mut Vec<todo::Todo>,
     current_date: &mut chrono::NaiveDate,
     app_state: &mut ui::AppState,
 ) -> io::Result<()> {
-    app_state.update_list_items(habits);
+    app_state.update_list_items(habits, todos);
     loop {
-        terminal.draw(|f| ui::draw(f, habits, current_date, app_state))?;
+        terminal.draw(|f| ui::draw(f, habits, todos, current_date, app_state))?;
 
         if let Event::Key(key) = event::read()? {
             match app_state.input_mode {
                 ui::InputMode::Normal => match key.code {
                     KeyCode::Char('q') => return Ok(()),
                     KeyCode::Char('a') => {
-                        app_state.input_mode = ui::InputMode::AddingCategory;
-                        app_state.new_category.clear();
-                        app_state.new_habit_name.clear();
-                        app_state.new_habit_frequency = habit::Frequency::Daily;
+                        if app_state.current_tab == 4 {
+                            app_state.input_mode = ui::InputMode::AddingTodo;
+                            app_state.new_todo.clear();
+                        } else {
+                            app_state.input_mode = ui::InputMode::AddingCategory;
+                            app_state.new_category.clear();
+                            app_state.new_habit_name.clear();
+                            app_state.new_habit_frequency = habit::Frequency::Daily;
+                        }
                     }
                     KeyCode::Enter => {
                         if let Some(index) = app_state.selected {
@@ -83,7 +93,7 @@ fn run_app<B: tui::backend::Backend>(
                                         .iter()
                                         .filter(|h| h.category == *category)
                                         .all(|h| h.is_completed(*current_date));
-                                   for habit in habits.iter_mut().filter(|h| h.category == *category) {
+                                    for habit in habits.iter_mut().filter(|h| h.category == *category) {
                                         if all_completed {
                                             habit.unmark_completed(*current_date);
                                         } else {
@@ -100,8 +110,13 @@ fn run_app<B: tui::backend::Backend>(
                                         }
                                     }
                                 }
+                                ListEntry::Todo(selected_todo) => {
+                                    if let Some(todo) = todos.iter_mut().find(|t| t.description == selected_todo.description) {
+                                        todo.toggle_completion();
+                                    }
+                                }
                             }
-                            app_state.update_list_items(habits);
+                            app_state.update_list_items(habits, todos);
                         }
                     }
                     KeyCode::Char('d') => {
@@ -115,9 +130,13 @@ fn run_app<B: tui::backend::Backend>(
                                     // Remove the selected habit
                                     habits.retain(|h| h.name != selected_habit.name || h.category != selected_habit.category);
                                 }
+                                ListEntry::Todo(selected_todo) => {
+                                    // Remove the selected todo
+                                    todos.retain(|t| t.description != selected_todo.description);
+                                }
                             }
-                            app_state.update_list_items(habits);
-                            if !habits.is_empty() {
+                            app_state.update_list_items(habits, todos);
+                            if !app_state.list_items.is_empty() {
                                 app_state.selected = Some(index.min(app_state.total_items - 1));
                             } else {
                                 app_state.selected = None;
@@ -137,10 +156,16 @@ fn run_app<B: tui::backend::Backend>(
                         app_state.next();
                     }
                     KeyCode::Tab => {
-                        app_state.current_tab = (app_state.current_tab + 1) % 3;
+                        app_state.current_tab = (app_state.current_tab + 1) % 5;
                         app_state.selected = None;
-                        app_state.update_list_items(habits);
+                        app_state.update_list_items(habits, todos);
                     }
+                        KeyCode::Char('p') => {
+                        app_state.previous_week();
+                    },
+                    KeyCode::Char('n') => {
+                        app_state.next_week();
+                    },
                     _ => {}
                 },
                 ui::InputMode::AddingCategory => match key.code {
@@ -172,7 +197,7 @@ fn run_app<B: tui::backend::Backend>(
                         app_state.new_habit_name.clear();
                         app_state.new_category.clear();
                         app_state.new_habit_frequency = habit::Frequency::Daily;
-                        app_state.update_list_items(habits);
+                        app_state.update_list_items(habits, todos);
                     }
                     KeyCode::Esc => {
                         app_state.input_mode = ui::InputMode::Normal;
@@ -194,7 +219,27 @@ fn run_app<B: tui::backend::Backend>(
                     }
                     _ => {}
                 },
+                ui::InputMode::AddingTodo => match key.code {
+                    KeyCode::Enter => {
+                        let new_todo = todo::Todo::new(app_state.new_todo.clone());
+                        todos.push(new_todo);
+                        app_state.input_mode = ui::InputMode::Normal;
+                        app_state.new_todo.clear();
+                        app_state.update_list_items(habits, todos);
+                    }
+                    KeyCode::Esc => {
+                        app_state.input_mode = ui::InputMode::Normal;
+                        app_state.new_todo.clear();
+                    }
+                    KeyCode::Char(c) => {
+                        app_state.new_todo.push(c);
+                    }
+                    KeyCode::Backspace => {
+                        app_state.new_todo.pop();
+                    }
+                    _ => {}
+                },
             }
         }
     }
-} 
+}

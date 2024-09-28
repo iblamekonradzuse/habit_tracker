@@ -1,1 +1,37 @@
-[]
+[
+  {
+    "name": "1",
+    "category": "a",
+    "frequency": "Daily",
+    "completed_dates": [
+      "2024-09-28",
+      "2024-09-29"
+    ]
+  },
+  {
+    "name": "1",
+    "category": "b",
+    "frequency": "Daily",
+    "completed_dates": [
+      "2024-09-28"
+    ]
+  },
+  {
+    "name": "1",
+    "category": "c",
+    "frequency": "Weekly",
+    "completed_dates": [
+      "2024-09-28",
+      "2024-09-30"
+    ]
+  },
+  {
+    "name": "1",
+    "category": "d",
+    "frequency": "Monthly",
+    "completed_dates": [
+      "2024-09-27",
+      "2024-09-28"
+    ]
+  }
+]
