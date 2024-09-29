@@ -117,3 +117,4 @@ impl Habit {
         self.get_streak(date)
     }
 }
+

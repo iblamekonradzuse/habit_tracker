@@ -16,6 +16,8 @@ pub enum InputMode {
     AddingCategory,
     AddingHabit,
     AddingTodo,
+    EditingCategory,
+    EditingHabit,
 }
 
 pub struct AppState {
@@ -29,6 +31,7 @@ pub struct AppState {
     pub total_items: usize,
     pub list_items: Vec<ListEntry>,
     pub current_week: NaiveDate,
+    pub edit_buffer: String,
 }
 
 pub enum ListEntry {
@@ -50,6 +53,7 @@ impl Default for AppState {
             total_items: 0,
             list_items: Vec::new(),
             current_week: chrono::Local::now().date_naive(),
+            edit_buffer: String::new(),
         }
     }
 }
@@ -290,6 +294,8 @@ fn draw_input<B: Backend>(f: &mut Frame<B>, area: Rect, app_state: &AppState) {
         InputMode::AddingCategory => (app_state.new_category.as_str(), "Enter category: "),
         InputMode::AddingHabit => (app_state.new_habit_name.as_str(), "Enter habit name: "),
         InputMode::AddingTodo => (app_state.new_todo.as_str(), "Enter todo: "),
+        InputMode::EditingCategory => (app_state.edit_buffer.as_str(), "Edit category: "),
+        InputMode::EditingHabit => (app_state.edit_buffer.as_str(), "Edit habit name: "),
     };
 
     let frequency_text = match app_state.input_mode {
@@ -417,10 +423,12 @@ fn draw_help<B: Backend>(f: &mut Frame<B>, area: Rect) {
         Span::raw(": Toggle | "),
         Span::styled("d", Style::default().add_modifier(Modifier::BOLD)),
         Span::raw(": Delete | "),
+        Span::styled("e", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(": Edit | "),
         Span::styled("←/→", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw(": Change date | "),
+        Span::raw(": Date | "),
         Span::styled("↑/↓", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw(": Navigate | "),
+        Span::raw(": Nav | "),
         Span::styled("Tab", Style::default().add_modifier(Modifier::BOLD)),
         Span::raw(": Switch tab  "),
     ])];

@@ -1,37 +1,50 @@
 [
   {
-    "name": "1",
-    "category": "a",
+    "name": "gym",
+    "category": "workout",
     "frequency": "Daily",
-    "completed_dates": [
-      "2024-09-28",
-      "2024-09-29"
-    ]
+    "completed_dates": []
   },
   {
-    "name": "1",
-    "category": "b",
+    "name": "cardio",
+    "category": "workout",
     "frequency": "Daily",
-    "completed_dates": [
-      "2024-09-28"
-    ]
+    "completed_dates": []
   },
   {
-    "name": "1",
-    "category": "c",
+    "name": "skincare",
+    "category": "self-care",
+    "frequency": "Daily",
+    "completed_dates": []
+  },
+  {
+    "name": "read 15mins",
+    "category": "self-care",
+    "frequency": "Daily",
+    "completed_dates": []
+  },
+  {
+    "name": "study 1h",
+    "category": "school",
+    "frequency": "Daily",
+    "completed_dates": []
+  },
+  {
+    "name": "test",
+    "category": "personal",
     "frequency": "Weekly",
-    "completed_dates": [
-      "2024-09-28",
-      "2024-09-30"
-    ]
+    "completed_dates": []
   },
   {
-    "name": "1",
-    "category": "d",
+    "name": "monthlyhabit",
+    "category": "test",
     "frequency": "Monthly",
-    "completed_dates": [
-      "2024-09-27",
-      "2024-09-28"
-    ]
+    "completed_dates": []
+  },
+  {
+    "name": "test2a",
+    "category": "personal",
+    "frequency": "Daily",
+    "completed_dates": []
   }
 ]

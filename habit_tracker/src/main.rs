@@ -13,7 +13,7 @@ mod storage;
 mod todo;
 mod ui;
 
-use crate::ui::ListEntry;
+use crate::ui::{InputMode, ListEntry};
 
 fn main() -> Result<(), Box<dyn Error>> {
     // Set up terminal
@@ -71,17 +71,32 @@ fn run_app<B: tui::backend::Backend>(
 
         if let Event::Key(key) = event::read()? {
             match app_state.input_mode {
-                ui::InputMode::Normal => match key.code {
+                InputMode::Normal => match key.code {
                     KeyCode::Char('q') => return Ok(()),
                     KeyCode::Char('a') => {
                         if app_state.current_tab == 4 {
-                            app_state.input_mode = ui::InputMode::AddingTodo;
+                            app_state.input_mode = InputMode::AddingTodo;
                             app_state.new_todo.clear();
                         } else {
-                            app_state.input_mode = ui::InputMode::AddingCategory;
+                            app_state.input_mode = InputMode::AddingCategory;
                             app_state.new_category.clear();
                             app_state.new_habit_name.clear();
                             app_state.new_habit_frequency = habit::Frequency::Daily;
+                        }
+                    }
+                    KeyCode::Char('e') => {
+                        if let Some(index) = app_state.selected {
+                            match &app_state.list_items[index] {
+                                ListEntry::Category(category) => {
+                                    app_state.input_mode = InputMode::EditingCategory;
+                                    app_state.edit_buffer = category.clone();
+                                }
+                                ListEntry::Habit(habit) => {
+                                    app_state.input_mode = InputMode::EditingHabit;
+                                    app_state.edit_buffer = habit.name.clone();
+                                }
+                                _ => {}
+                            }
                         }
                     }
                     KeyCode::Enter => {
@@ -93,7 +108,9 @@ fn run_app<B: tui::backend::Backend>(
                                         .iter()
                                         .filter(|h| h.category == *category)
                                         .all(|h| h.is_completed(*current_date));
-                                    for habit in habits.iter_mut().filter(|h| h.category == *category) {
+                                    for habit in
+                                        habits.iter_mut().filter(|h| h.category == *category)
+                                    {
                                         if all_completed {
                                             habit.unmark_completed(*current_date);
                                         } else {
@@ -102,7 +119,10 @@ fn run_app<B: tui::backend::Backend>(
                                     }
                                 }
                                 ListEntry::Habit(selected_habit) => {
-                                    if let Some(habit) = habits.iter_mut().find(|h| h.name == selected_habit.name && h.category == selected_habit.category) {
+                                    if let Some(habit) = habits.iter_mut().find(|h| {
+                                        h.name == selected_habit.name
+                                            && h.category == selected_habit.category
+                                    }) {
                                         if habit.is_completed(*current_date) {
                                             habit.unmark_completed(*current_date);
                                         } else {
@@ -111,7 +131,10 @@ fn run_app<B: tui::backend::Backend>(
                                     }
                                 }
                                 ListEntry::Todo(selected_todo) => {
-                                    if let Some(todo) = todos.iter_mut().find(|t| t.description == selected_todo.description) {
+                                    if let Some(todo) = todos
+                                        .iter_mut()
+                                        .find(|t| t.description == selected_todo.description)
+                                    {
                                         todo.toggle_completion();
                                     }
                                 }
@@ -128,7 +151,10 @@ fn run_app<B: tui::backend::Backend>(
                                 }
                                 ListEntry::Habit(selected_habit) => {
                                     // Remove the selected habit
-                                    habits.retain(|h| h.name != selected_habit.name || h.category != selected_habit.category);
+                                    habits.retain(|h| {
+                                        h.name != selected_habit.name
+                                            || h.category != selected_habit.category
+                                    });
                                 }
                                 ListEntry::Todo(selected_todo) => {
                                     // Remove the selected todo
@@ -160,20 +186,20 @@ fn run_app<B: tui::backend::Backend>(
                         app_state.selected = None;
                         app_state.update_list_items(habits, todos);
                     }
-                        KeyCode::Char('p') => {
+                    KeyCode::Char('p') => {
                         app_state.previous_week();
-                    },
+                    }
                     KeyCode::Char('n') => {
                         app_state.next_week();
-                    },
+                    }
                     _ => {}
                 },
-                ui::InputMode::AddingCategory => match key.code {
+                InputMode::AddingCategory => match key.code {
                     KeyCode::Enter => {
-                        app_state.input_mode = ui::InputMode::AddingHabit;
+                        app_state.input_mode = InputMode::AddingHabit;
                     }
                     KeyCode::Esc => {
-                        app_state.input_mode = ui::InputMode::Normal;
+                        app_state.input_mode = InputMode::Normal;
                         app_state.new_category.clear();
                         app_state.new_habit_name.clear();
                     }
@@ -185,7 +211,7 @@ fn run_app<B: tui::backend::Backend>(
                     }
                     _ => {}
                 },
-                ui::InputMode::AddingHabit => match key.code {
+                InputMode::AddingHabit => match key.code {
                     KeyCode::Enter => {
                         let new_habit = habit::Habit::new(
                             app_state.new_habit_name.clone(),
@@ -193,14 +219,14 @@ fn run_app<B: tui::backend::Backend>(
                             app_state.new_habit_frequency,
                         );
                         habits.push(new_habit);
-                        app_state.input_mode = ui::InputMode::Normal;
+                        app_state.input_mode = InputMode::Normal;
                         app_state.new_habit_name.clear();
                         app_state.new_category.clear();
                         app_state.new_habit_frequency = habit::Frequency::Daily;
                         app_state.update_list_items(habits, todos);
                     }
                     KeyCode::Esc => {
-                        app_state.input_mode = ui::InputMode::Normal;
+                        app_state.input_mode = InputMode::Normal;
                         app_state.new_habit_name.clear();
                         app_state.new_category.clear();
                     }
@@ -219,16 +245,16 @@ fn run_app<B: tui::backend::Backend>(
                     }
                     _ => {}
                 },
-                ui::InputMode::AddingTodo => match key.code {
+                InputMode::AddingTodo => match key.code {
                     KeyCode::Enter => {
                         let new_todo = todo::Todo::new(app_state.new_todo.clone());
                         todos.push(new_todo);
-                        app_state.input_mode = ui::InputMode::Normal;
+                        app_state.input_mode = InputMode::Normal;
                         app_state.new_todo.clear();
                         app_state.update_list_items(habits, todos);
                     }
                     KeyCode::Esc => {
-                        app_state.input_mode = ui::InputMode::Normal;
+                        app_state.input_mode = InputMode::Normal;
                         app_state.new_todo.clear();
                     }
                     KeyCode::Char(c) => {
@@ -239,7 +265,68 @@ fn run_app<B: tui::backend::Backend>(
                     }
                     _ => {}
                 },
+                InputMode::EditingCategory => match key.code {
+                    KeyCode::Enter => {
+                        if let Some(index) = app_state.selected {
+                            if let ListEntry::Category(category) = &mut app_state.list_items[index]
+                            {
+                                let old_category = category.clone();
+                                *category = app_state.edit_buffer.clone();
+                                for habit in habits.iter_mut() {
+                                    if habit.category == old_category {
+                                        habit.category = app_state.edit_buffer.clone();
+                                    }
+                                }
+                            }
+                        }
+                        app_state.input_mode = InputMode::Normal;
+                        app_state.edit_buffer.clear();
+                        app_state.update_list_items(habits, todos);
+                    }
+                    KeyCode::Esc => {
+                        app_state.input_mode = InputMode::Normal;
+                        app_state.edit_buffer.clear();
+                    }
+                    KeyCode::Char(c) => {
+                        app_state.edit_buffer.push(c);
+                    }
+                    KeyCode::Backspace => {
+                        app_state.edit_buffer.pop();
+                    }
+                    _ => {}
+                },
+                InputMode::EditingHabit => match key.code {
+                    KeyCode::Enter => {
+                        if let Some(index) = app_state.selected {
+                            if let ListEntry::Habit(habit) = &mut app_state.list_items[index] {
+                                let old_name = habit.name.clone();
+                                habit.name = app_state.edit_buffer.clone();
+                                if let Some(h) = habits
+                                    .iter_mut()
+                                    .find(|h| h.name == old_name && h.category == habit.category)
+                                {
+                                    h.name = app_state.edit_buffer.clone();
+                                }
+                            }
+                        }
+                        app_state.input_mode = InputMode::Normal;
+                        app_state.edit_buffer.clear();
+                        app_state.update_list_items(habits, todos);
+                    }
+                    KeyCode::Esc => {
+                        app_state.input_mode = InputMode::Normal;
+                        app_state.edit_buffer.clear();
+                    }
+                    KeyCode::Char(c) => {
+                        app_state.edit_buffer.push(c);
+                    }
+                    KeyCode::Backspace => {
+                        app_state.edit_buffer.pop();
+                    }
+                    _ => {}
+                },
             }
         }
     }
 }
+
