@@ -1,6 +1,6 @@
 use crate::habit::{Frequency, Habit};
 use crate::todo::Todo;
-use chrono::{Datelike, NaiveDate, Weekday};
+use chrono::{Datelike, NaiveDate};
 use std::collections::BTreeMap;
 use tui::{
     backend::Backend,
@@ -182,7 +182,7 @@ fn draw_main_content<B: Backend>(
     f: &mut Frame<B>,
     area: Rect,
     habits: &[Habit],
-    todos: &[Todo],
+    _todos: &[Todo],
     current_date: &NaiveDate,
     app_state: &mut AppState,
 ) {
